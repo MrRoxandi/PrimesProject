@@ -3,84 +3,132 @@
 #include <stdexcept>
 #include <limits>
 #include <type_traits>
-#include <vector>
-
+#include <memory>
 #include <ostream>
-#include <concepts>
 
-
-class bitsarray {
-    uint64_t mSize;
-    std::vector<uint64_t> mBits;
+class clampedBits{
+    std::unique_ptr<uint64_t[]> mData;
+    uint64_t mSize, mBlocks;
+    template<class lambda_t> static void * for_each(const uint64_t* left, const uint64_t* right,
+        const uint64_t l_size, const uint64_t r_size, uint64_t* storage, lambda_t lambda) {
+        auto max_size = std::max(l_size, r_size);
+        for(uint64_t idx = 0; idx < max_size; ++idx){
+            auto item_l = (l_size > idx) ? left[idx] : 0;
+            auto item_r = (r_size > idx) ? right[idx] : 0;
+            storage[idx] = lambda(item_l, item_r);
+        }
+        return storage;
+    }
 public:
     static constexpr uint64_t ONES = std::numeric_limits<uint64_t>::max();
-    bitsarray(const uint64_t size, const unsigned int filler = 0) : mSize(size) {
-        mBits.resize((size + 63) / 64, filler ? ONES : 0);
+    explicit clampedBits(const uint64_t bit_count){
+        mSize = bit_count; mBlocks = bit_count / 64 + 1;
+        mData = std::make_unique<uint64_t[]>(mBlocks);
     }
 
-    bitsarray(const bitsarray& other) : mSize(other.mSize), mBits(other.mBits) {}
-
-    bitsarray(bitsarray&& other) noexcept : mSize(other.mSize), mBits(std::move(other.mBits)) {
-        other.mSize = 0;
+    clampedBits(const clampedBits& other){
+        mSize = other.mSize; mBlocks = other.mBlocks;
+        mData = std::make_unique<uint64_t[]>(mBlocks);
+        std::copy_n(other.mData.get(), mBlocks, mData.get());
     }
+    clampedBits(clampedBits&&) noexcept = default;
 
-    bitsarray& operator=(const bitsarray& other) {
-        if (this == &other) return *this;
-        mSize = other.mSize;
-        mBits = other.mBits;
+    clampedBits& operator=(const clampedBits& other){
+        mSize = other.mSize; mBlocks = other.mBlocks;
+        mData = std::make_unique<uint64_t[]>(mBlocks);
+        std::copy_n(other.mData.get(), mBlocks, mData.get());
         return *this;
     }
+    clampedBits& operator=(clampedBits&&) noexcept = default;
 
-    bitsarray& operator=(bitsarray&& other) noexcept {
-        if (this == &other) return *this;
-        mSize = other.mSize;
-        mBits = std::move(other.mBits);
-        other.mSize = 0;
-        return *this;
-    }
-
-    void expand(const uint64_t new_size, const unsigned int filler = 0) {
-        if (new_size <= mSize) return;
-        uint64_t old_size_blocks = (mSize + 63) / 64;
-        uint64_t new_size_blocks = (new_size + 63) / 64;
-        if (new_size_blocks > old_size_blocks) {
-            mBits.resize(new_size_blocks, filler ? ONES : 0);
+    friend bool operator==(const clampedBits& lhs, const clampedBits& rhs){
+        if(lhs.mSize != rhs.mSize) return false;
+        for(uint64_t idx = 0; idx < lhs.mBlocks; ++idx){
+            if(lhs.mData.get()[idx] ^ rhs.mData.get()[idx]) return false;
         }
-        mSize = new_size;
-    }
-    unsigned int operator[](const uint64_t pos) const {
-        if (pos >= mSize) throw std::out_of_range("Position out of range");
-        uint64_t block_p = pos / 64, bit_p = pos % 64;
-        return (mBits[block_p] >> bit_p) & 1;
-    }
-    [[nodiscard]] unsigned int get(uint64_t position) const {
-        if (position >= mSize) throw std::out_of_range("Position out of range");
-        auto block_p = position / 64, bit_p = position % 64;
-        return (mBits[block_p] >> bit_p) & 1;
+        return true;
     }
 
-    void set(uint64_t position, unsigned int val) {
-        if (position >= mSize) throw std::out_of_range("Position out of range");
-        auto block_p = position / 64, bit_p = position % 64;
-        if (val) {
-            mBits[block_p] |= (1ull << bit_p);
-        }
-        else {
-            mBits[block_p] &= ~(1ull << bit_p);
-        }
-    }
-    
-    bool operator==(const bitsarray& other) const {
-        return mSize == other.mSize && mBits == other.mBits;
+    friend bool operator!=(const clampedBits& lhs, const clampedBits& rhs){
+        return !(lhs == rhs);
     }
 
-    bool operator!=(const bitsarray& other) const {
-        return !(*this == other);
+    unsigned int operator[](const uint64_t position) const{
+        if(position >= mSize) throw std::out_of_range("");
+        return (mData.get()[position / 64] >> (position % 64)) & 1;
     }
-    friend std::ostream& operator<<(std::ostream& os, const bitsarray& ba) {
-        for (uint64_t idx = 0; idx < ba.mSize; ++idx) {
-            os << (ba.get(idx) ? '1' : '0');
+
+    clampedBits operator|(const clampedBits& other) const{
+        clampedBits temp(std::max(mBlocks, other.mBlocks));
+        for_each(mData.get(), other.mData.get(), mBlocks, other.mBlocks, temp.mData.get(), [](
+                const uint64_t l, const uint64_t r){return l | r;}
+        );
+        return temp;
+    }
+    void operator|=(const clampedBits& other){
+        expand(std::max(mSize, other.mSize), 0);
+        for_each(mData.get(), other.mData.get(), mBlocks, other.mBlocks, mData.get(),
+                 [](const uint64_t l, const uint64_t r){return l | r;});
+    }
+    clampedBits operator&(const clampedBits& other) const{
+        clampedBits temp(std::max(mBlocks, other.mBlocks));
+        for_each(mData.get(), other.mData.get(), mBlocks, other.mBlocks, temp.mData.get(), [](
+                const uint64_t l, const uint64_t r){return l & r;}
+                );
+        return temp;
+    }
+    void operator&=(const clampedBits& other){
+        expand(std::max(this->mSize, other.mSize));
+        for_each(mData.get(), other.mData.get(), mBlocks, other.mBlocks, mData.get(), [](
+                const uint64_t l, const uint64_t r){return l & r;}
+        );
+    }
+    clampedBits operator^(const clampedBits& other) const{
+        clampedBits temp(std::max(mSize, other.mSize));
+        for_each(mData.get(), other.mData.get(), mBlocks, other.mBlocks, temp.mData.get(),
+                 [](const uint64_t l, const uint64_t r){return l ^ r;});
+        return temp;
+    }
+    void operator^=(const clampedBits& other){
+        expand(std::max(mSize, other.mSize));
+        for_each(mData.get(), other.mData.get(), mBlocks, other.mBlocks, mData.get(),
+                 [](const uint64_t l, const uint64_t r){return l ^ r;});
+    }
+    clampedBits operator~() const {
+        clampedBits temp(*this);
+        std::for_each_n(temp.mData.get(), temp.mBlocks, [](uint64_t& item){ item = ~item; });
+        return temp;
+    }
+    friend std::ostream& operator<<(std::ostream& os, const clampedBits& bits){
+        for(uint64_t idx = 0; idx < bits.mSize; ++idx) {
+            os << bits[idx];
         }
         return os;
+    }
+    void set_all(const unsigned int bit){
+        std::for_each_n(mData.get(), mBlocks, [=](uint64_t& item){ item = (bit) ? ONES : 0;});
+    }
+    void set(const uint64_t position, const unsigned int bit) {
+        if(position >= mSize) return;
+        if(bit > 1) return;
+        if(bit) mData.get()[position / 64] |= (bit) << (position % 64);
+        else mData.get()[position / 64] &= ~(bit << (position % 64));
+    }
+
+    void expand(const uint64_t bit_count, const uint64_t filler = 0){
+        if(bit_count <= mSize) return;
+        auto additional_size = mSize - bit_count;
+        auto additional_blocks = mBlocks - (additional_size + 63) % 64;
+        auto newData = std::make_unique<uint64_t[]>(mBlocks + additional_blocks);
+        std::copy_n(mData.get(), mBlocks, newData.get());
+        std::fill_n(newData.get() + mBlocks, additional_blocks, filler);
+        mData.swap(newData);
+        mBlocks += additional_blocks;
+        mSize += additional_size;
+    }
+
+    [[nodiscard]] unsigned int at(const uint64_t position) const {
+        if(position >= mSize) return 0;
+        return (mData.get()[position / 64] >> (position % 64)) & 1;
     }
 };
