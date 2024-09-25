@@ -45,3 +45,11 @@
 /cmake-build-debug/CMakeFiles/TargetDirectories.txt
 /cmake-build-debug/.cmake/api/v1/query/toolchains-v1
 /cmake-build-debug/.cmake/api/v1/reply/toolchains-v1-70d7368fb6fac1fee4a4.json
+primes.txt
+/.idea
+/.vscode
+/build
+/cmake-build-debug
+/cmake-build-minsizerel
+/cmake-build-release
+
