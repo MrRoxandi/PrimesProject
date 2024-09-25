@@ -8,17 +8,15 @@
 #include <string>
 #include <algorithm>
 #include <cstring>
+#include <cmath>
 
 class clampedBits
 {
     std::unique_ptr<uint64_t[]> mData;
     uint64_t mSize, mBlocks;
-    static uint64_t count_bits(uint64_t i)
+    static uint64_t bitlen(uint64_t i)
     {
-        uint64_t result = 0ull;
-        for (; i > 0; i >>= 1, result += 1)
-            ;
-        return result;
+        return (i > 0) ? static_cast<uint64_t>(std::ceil(std::log2(i))) : 1;
     }
 
 public:
@@ -45,7 +43,7 @@ public:
         }
     }
 
-    clampedBits(const uint64_t bitsData) : mSize(clampedBits::count_bits(bitsData)), mBlocks(1), mData(new uint64_t[1]{bitsData}) {}
+    clampedBits(const uint64_t bitsData) : mSize(clampedBits::bitlen(bitsData)), mBlocks(1), mData(new uint64_t[1]{bitsData}) {}
 
     clampedBits(const std::string_view binary_string) : mSize(binary_string.length()), mBlocks(binary_string.length() / 64 + 1)
     {

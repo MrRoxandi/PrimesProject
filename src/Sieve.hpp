@@ -7,28 +7,22 @@
 class smallSieve
 {
     clampedBits mData;
-    uint64_t mLastChecked;
     void __sieve()
     {
-        for (uint64_t idx = 3; idx * idx < std::sqrt(mData.size()); idx += 2)
-        {
-            if (mData.at(idx))
-            {
-                for (uint64_t j = idx * idx; j < mData.size(); j += 2 * idx)
-                {
-                    mData.set(j, 0);
-                }
-            }
-        }
+        for (uint64_t possible_prime = 3; possible_prime * possible_prime < mData.size(); possible_prime += 2)
+            if (mData.at(possible_prime))
+                for (uint64_t not_prime = possible_prime * possible_prime; not_prime < mData.size(); not_prime += 2 * possible_prime)
+                    mData.set(not_prime, 0);
     }
 
 public:
-    explicit smallSieve(uint64_t n) : mData(clampedBits(n, 1)), mLastChecked(0)
+    explicit smallSieve(uint64_t n) : mData(clampedBits(n, 1))
     {
         mData.set(0, 0);
         mData.set(1, 0);
         __sieve();
     }
+
     [[nodiscard]] uint64_t size() const { return mData.size(); }
 
     void expand(uint64_t n)
@@ -64,19 +58,21 @@ public:
     }
     [[nodiscard]] bool isPrime(uint64_t number)
     {
-        if (number >= mData.size())
-            expand(number + 1);
-        if (number != 0b10 && !(number & 1))
+        if (number <= 1)
             return false;
-        else
-            return mData.at(number);
+        if (number <= 3)
+            return true;
+        if (!(number & 1))
+            return false;
+        return mData.at(number);
     }
     friend std::ostream &operator<<(std::ostream &os, smallSieve &sieve)
     {
-        for (uint64_t idx = 2; idx < sieve.mData.size(); ++idx)
+        os << 2 << ' ';
+        for (uint64_t prime = 3; prime < sieve.mData.size(); prime += 2)
         {
-            if (sieve.isPrime(idx))
-                os << idx << ' ';
+            if (sieve.isPrime(prime))
+                os << prime << ' ';
         }
         return os;
     }

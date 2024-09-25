@@ -2,10 +2,13 @@
 #include <fstream>
 #include <iomanip>
 
-#include "src/Sieve.hpp"
+#include "src/sieve.hpp"
 
 int main()
 {
-    clampedBits left = 0b000111111, right = 0b1111;
-    std::cout << (left != right);
+
+    std::ofstream file(R"(F:\Repos\primesProject\primes.txt)");
+    smallSieve sieve(36ull * 1000ull * 1000ull * 100ull);
+    file << sieve << std::endl;
+    file.close();
 }
