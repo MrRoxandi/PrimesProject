@@ -125,22 +125,22 @@ public:
         for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
         {
             auto first = 0ull, second = 0ull;
-            if (block_idx < mSize)
+            if (block_idx < mBlocks)
                 first = mData.get()[block_idx];
-            if (block_idx < other.mSize)
+            if (block_idx < other.mBlocks)
                 second = other.mData.get()[block_idx];
             mData.get()[block_idx] = first | second;
         }
     }
     clampedBits operator&(const clampedBits &other) const
     {
-        clampedBits temp(std::max(mBlocks, other.mBlocks));
+        clampedBits temp(std::max(mSize, other.mSize), 0);
         for (uint64_t block_idx = 0; block_idx < temp.mBlocks; ++block_idx)
         {
             auto first = 0ull, second = 0ull;
-            if (block_idx < mSize)
+            if (block_idx < mBlocks)
                 first = mData.get()[block_idx];
-            if (block_idx < other.mSize)
+            if (block_idx < other.mBlocks)
                 second = other.mData.get()[block_idx];
             temp.mData.get()[block_idx] = first & second;
         }
@@ -148,7 +148,7 @@ public:
     }
     void operator&=(const clampedBits &other)
     {
-        expand(std::max(this->mSize, other.mSize));
+        expand(std::max(mSize, other.mSize), 0);
         for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
         {
             auto first = 0ull, second = 0ull;
@@ -197,7 +197,7 @@ public:
     {
         for (uint64_t idx = 0; idx < bits.mSize; ++idx)
         {
-            os << bits[idx];
+            os << ((bits.mData[idx / 64] >> (idx % 64)) & 1);
         }
         return os;
     }

@@ -45,7 +45,7 @@ public:
         }
         return 1;
     }
-    [[nodiscard]] uint64_t next(uint64_t number)
+    [[nodiscard]] uint64_t next(uint64_t number) const
     {
         if (number >= mData.size())
             throw std::runtime_error("Given number is too large for this sieve");
@@ -56,7 +56,7 @@ public:
         }
         return 0;
     }
-    [[nodiscard]] bool isPrime(uint64_t number)
+    [[nodiscard]] bool isPrime(uint64_t number) const
     {
         if (number <= 1)
             return false;
@@ -66,7 +66,7 @@ public:
             return false;
         return mData.at(number);
     }
-    friend std::ostream &operator<<(std::ostream &os, smallSieve &sieve)
+    friend std::ostream &operator<<(std::ostream &os, const smallSieve &sieve)
     {
         os << 2 << ' ';
         for (uint64_t prime = 3; prime < sieve.mData.size(); prime += 2)

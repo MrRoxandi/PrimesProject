@@ -7,8 +7,6 @@
 int main()
 {
 
-    std::ofstream file(R"(F:\Repos\primesProject\primes.txt)");
-    smallSieve sieve(36ull * 1000ull * 1000ull * 100ull);
-    file << sieve << std::endl;
-    file.close();
+    smallSieve sieve(15 * 1000 * 1000 * 10);
+    std::cout << sieve.next(1546) << '\n';
 }
