@@ -107,7 +107,7 @@ public:
 
     clampedBits operator|(const clampedBits &other) const
     {
-        clampedBits temp(std::max(mBlocks, other.mBlocks), 0);
+        clampedBits temp(std::max(mSize, other.mSize), 0);
         for (uint64_t block_idx = 0; block_idx < temp.mBlocks; ++block_idx)
         {
             auto first = 0ull, second = 0ull;
@@ -175,7 +175,7 @@ public:
     }
     void operator^=(const clampedBits &other)
     {
-        expand(std::max(this->mSize, other.mSize), 0);
+        expand(std::max(mSize, other.mSize), 0);
         for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
         {
             auto first = 0ull, second = 0ull;
@@ -192,6 +192,18 @@ public:
         std::for_each_n(temp.mData.get(), temp.mBlocks, [](uint64_t &item)
                         { item = ~item; });
         return temp;
+    }
+    clampedBits operator<<(const uint64_t count)
+    {
+        clampedBits temp(mSize + count, 0);
+        uint64_t how_many_blocks_to_skip = count / 64;
+        uint64_t how_many_bits_to_carry = count % 64;
+        uint64_t storage_bits = 0, carry_bits = 0;
+        for (uint64_t block_idx = how_many_blocks_to_skip; block_idx < temp.mBlocks; ++block_idx)
+        {
+            storage_bits = mData.get()[block_idx - how_many_blocks_to_skip] & ~(1 << (how_many_bits_to_carry + 1));
+            
+        }
     }
     friend std::ostream &operator<<(std::ostream &os, const clampedBits &bits)
     {
