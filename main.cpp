@@ -7,6 +7,6 @@
 int main()
 {
 
-    smallSieve sieve(15 * 1000 * 1000 * 10);
-    std::cout << sieve.next(1546) << '\n';
+    clampedBits bits = 0b1101;
+    std::cout << (bits << 1);
 }

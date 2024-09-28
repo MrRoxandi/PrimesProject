@@ -97,7 +97,15 @@ public:
     {
         return !(lhs == rhs);
     }
-
+    clampedBits operator<<(const uint64_t bits) const
+    {
+        clampedBits temp(mSize + bits, 0);
+        for (uint64_t idx = bits; idx < temp.mSize; ++idx)
+        {
+            temp.mData.get()[idx / 64] |= ((mData.get()[(idx - bits) / 64] >> ((idx - bits) % 64)) & 1) << ((idx - bits) % 64);
+        }
+        return temp;
+    }
     unsigned int operator[](const uint64_t position) const
     {
         if (position >= mSize)
