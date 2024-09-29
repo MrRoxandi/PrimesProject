@@ -16,54 +16,49 @@ class clampedBits
     uint64_t mSize, mBlocks;
     static uint64_t bitlen(uint64_t i)
     {
-        return (i > 0) ? static_cast<uint64_t>(std::ceil(std::log2(i))) : 1;
+        if (i < 2)
+            return 1;
+        if (i == 2)
+            return 2;
+        else
+            return static_cast<uint64_t>(std::ceil(std::log2(i)));
+    }
+    static bool is_binary_str(const char *str)
+    {
+        for (uint64_t idx = 0; str[idx] != '\0'; ++idx)
+            if (str[idx] > '1' || str[idx] < '0')
+                return false;
+        return true;
     }
 
 public:
     static constexpr uint64_t ONES = std::numeric_limits<uint64_t>::max();
 
-    clampedBits(const uint64_t bit_count, unsigned int filler)
+    clampedBits(const uint64_t bit_count, unsigned int filler) : mSize(bit_count), mBlocks(bit_count / 64 + 1), mData(new uint64_t[mBlocks])
     {
-        mSize = bit_count;
-        mBlocks = bit_count / 64 + 1;
-        mData = std::make_unique<uint64_t[]>(mBlocks);
         std::fill_n(mData.get(), mBlocks, (filler) ? ONES : 0);
     }
 
-    clampedBits(const char *binary_string) : mSize(std::strlen(binary_string)), mBlocks(std::strlen(binary_string) / 64 + 1)
+    clampedBits(const char *binary_string) : mSize(std::strlen(binary_string)), mBlocks(std::strlen(binary_string) / 64 + 1),
+                                             mData(new uint64_t[mBlocks])
     {
-        mData = std::make_unique<uint64_t[]>(mBlocks);
         std::fill_n(mData.get(), mBlocks, 0);
+        if (!is_binary_str(binary_string))
+            return;
         for (uint64_t idx = 0; idx < mSize; ++idx)
         {
-            if (auto bit = static_cast<uint64_t>(binary_string[idx] - '0'); bit > 1)
-                throw std::runtime_error("Invalid binary string");
-            else
-                mData.get()[idx / 64] |= bit << (idx % 64);
+            uint64_t bit = static_cast<uint64_t>(binary_string[idx] - '0');
+            mData[idx / 64] |= bit << (idx % 64);
         }
     }
 
     clampedBits(const uint64_t bitsData) : mSize(clampedBits::bitlen(bitsData)), mBlocks(1), mData(new uint64_t[1]{bitsData}) {}
 
-    clampedBits(const std::string_view binary_string) : mSize(binary_string.length()), mBlocks(binary_string.length() / 64 + 1)
+    clampedBits(const clampedBits &other) : mSize(other.mSize), mBlocks(other.mBlocks), mData(new uint64_t[mBlocks])
     {
-        mData = std::make_unique<uint64_t[]>(mBlocks);
-        std::fill_n(mData.get(), mBlocks, 0);
-        for (uint64_t idx = 0; idx < mSize; ++idx)
-        {
-            if (auto bit = static_cast<uint64_t>(binary_string[idx] - '0'); bit > 1)
-                throw std::runtime_error("Invalid binary string");
-            else
-                mData.get()[idx / 64] |= bit << (idx % 64);
-        }
-    }
-    clampedBits(const clampedBits &other)
-    {
-        mSize = other.mSize;
-        mBlocks = other.mBlocks;
-        mData = std::make_unique<uint64_t[]>(mBlocks);
         std::copy_n(other.mData.get(), mBlocks, mData.get());
     }
+
     clampedBits(clampedBits &&) noexcept = default;
 
     clampedBits &operator=(const clampedBits &other)
@@ -86,10 +81,16 @@ public:
     }
     friend bool operator==(const clampedBits &lhs, const clampedBits &rhs)
     {
-        auto temp = lhs ^ rhs;
-        for (uint64_t idx = 0; idx < temp.mBlocks; ++idx)
-            if (temp.mData[idx] & 1)
+        for (uint64_t block_idx = 0; block_idx < std::max(lhs.mBlocks, rhs.mBlocks); ++block_idx)
+        {
+            uint64_t left = 0, right = 0;
+            if (block_idx < lhs.mBlocks)
+                left = lhs.mData[block_idx];
+            if (block_idx < rhs.mBlocks)
+                right = rhs.mData[block_idx];
+            if (left ^ right)
                 return false;
+        }
         return true;
     }
 
@@ -97,12 +98,22 @@ public:
     {
         return !(lhs == rhs);
     }
-    clampedBits operator<<(const uint64_t bits) const
+
+    clampedBits operator<<(const uint64_t count)
     {
-        clampedBits temp(mSize + bits, 0);
-        for (uint64_t idx = bits; idx < temp.mSize; ++idx)
+        clampedBits temp(mSize + count, 0);
+        for (uint64_t idx = count; idx < temp.mSize; ++idx)
+            temp.set(idx, at(idx - count));
+        return temp;
+    }
+    clampedBits operator>>(const uint64_t count) const
+    {
+        if (count >= mSize)
+            return clampedBits(1, 0);
+        clampedBits temp(mSize - count, 0);
+        for (uint64_t idx = 0; idx < temp.mSize; ++idx)
         {
-            temp.mData.get()[idx / 64] |= ((mData.get()[(idx - bits) / 64] >> ((idx - bits) % 64)) & 1) << ((idx - bits) % 64);
+            temp.set(idx, at(idx + count));
         }
         return temp;
     }
@@ -110,7 +121,7 @@ public:
     {
         if (position >= mSize)
             throw std::out_of_range("");
-        return (mData.get()[position / 64] >> (position % 64)) & 1;
+        return (mData[position / 64] >> (position % 64)) & 1;
     }
 
     clampedBits operator|(const clampedBits &other) const
@@ -120,10 +131,10 @@ public:
         {
             auto first = 0ull, second = 0ull;
             if (block_idx < mBlocks)
-                first = mData.get()[block_idx];
+                first = mData[block_idx];
             if (block_idx < other.mBlocks)
-                second = other.mData.get()[block_idx];
-            temp.mData.get()[block_idx] = first | second;
+                second = other.mData[block_idx];
+            temp.mData[block_idx] = first | second;
         }
         return temp;
     }
@@ -134,10 +145,10 @@ public:
         {
             auto first = 0ull, second = 0ull;
             if (block_idx < mBlocks)
-                first = mData.get()[block_idx];
+                first = mData[block_idx];
             if (block_idx < other.mBlocks)
-                second = other.mData.get()[block_idx];
-            mData.get()[block_idx] = first | second;
+                second = other.mData[block_idx];
+            mData[block_idx] = first | second;
         }
     }
     clampedBits operator&(const clampedBits &other) const
@@ -147,10 +158,10 @@ public:
         {
             auto first = 0ull, second = 0ull;
             if (block_idx < mBlocks)
-                first = mData.get()[block_idx];
+                first = mData[block_idx];
             if (block_idx < other.mBlocks)
-                second = other.mData.get()[block_idx];
-            temp.mData.get()[block_idx] = first & second;
+                second = other.mData[block_idx];
+            temp.mData[block_idx] = first & second;
         }
         return temp;
     }
@@ -161,10 +172,10 @@ public:
         {
             auto first = 0ull, second = 0ull;
             if (block_idx < mSize)
-                first = mData.get()[block_idx];
+                first = mData[block_idx];
             if (block_idx < other.mSize)
-                second = other.mData.get()[block_idx];
-            mData.get()[block_idx] = first & second;
+                second = other.mData[block_idx];
+            mData[block_idx] = first & second;
         }
     }
     clampedBits operator^(const clampedBits &other) const
@@ -174,10 +185,10 @@ public:
         {
             auto first = 0ull, second = 0ull;
             if (block_idx < mBlocks)
-                first = mData.get()[block_idx];
+                first = mData[block_idx];
             if (block_idx < other.mBlocks)
-                second = other.mData.get()[block_idx];
-            temp.mData.get()[block_idx] = first ^ second;
+                second = other.mData[block_idx];
+            temp.mData[block_idx] = first ^ second;
         }
         return temp;
     }
@@ -188,10 +199,10 @@ public:
         {
             auto first = 0ull, second = 0ull;
             if (block_idx < mBlocks)
-                first = mData.get()[block_idx];
+                first = mData[block_idx];
             if (block_idx < other.mBlocks)
-                second = other.mData.get()[block_idx];
-            mData.get()[block_idx] = first ^ second;
+                second = other.mData[block_idx];
+            mData[block_idx] = first ^ second;
         }
     }
     clampedBits operator~() const
@@ -200,18 +211,6 @@ public:
         std::for_each_n(temp.mData.get(), temp.mBlocks, [](uint64_t &item)
                         { item = ~item; });
         return temp;
-    }
-    clampedBits operator<<(const uint64_t count)
-    {
-        clampedBits temp(mSize + count, 0);
-        uint64_t how_many_blocks_to_skip = count / 64;
-        uint64_t how_many_bits_to_carry = count % 64;
-        uint64_t storage_bits = 0, carry_bits = 0;
-        for (uint64_t block_idx = how_many_blocks_to_skip; block_idx < temp.mBlocks; ++block_idx)
-        {
-            storage_bits = mData.get()[block_idx - how_many_blocks_to_skip] & ~(1 << (how_many_bits_to_carry + 1));
-            
-        }
     }
     friend std::ostream &operator<<(std::ostream &os, const clampedBits &bits)
     {
@@ -232,9 +231,9 @@ public:
             return;
         if (bit > 1)
             return;
-        auto new_block = mData.get()[position / 64];
+        auto new_block = mData[position / 64];
         new_block = (bit) ? (new_block | (bit << (position % 64))) : (new_block & (~(1ull << (position % 64))));
-        mData.get()[position / 64] = new_block;
+        mData[position / 64] = new_block;
     }
 
     void expand(const uint64_t bit_count, const unsigned int filler = 0)
@@ -255,13 +254,13 @@ public:
     {
         if (position >= mSize)
             return 0;
-        return (mData.get()[position / 64] >> (position % 64)) & 1;
+        return (mData[position / 64] >> (position % 64)) & 1;
     }
     std::string str() const
     {
         std::string result;
         for (uint64_t idx = 0; idx < mSize; ++idx)
-            result.push_back(((mData.get()[idx / 64]) >> (idx % 64)) & 1 ? '1' : '0');
+            result.push_back(((mData[idx / 64]) >> (idx % 64)) & 1 ? '1' : '0');
         return result;
     }
     std::string base_str(unsigned int base = 10) const
