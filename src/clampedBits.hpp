@@ -34,14 +34,15 @@ class clampedBits
 public:
     static constexpr uint64_t ONES = std::numeric_limits<uint64_t>::max();
 
-    clampedBits(const uint64_t bit_count, unsigned int filler) : mSize(bit_count), mBlocks(bit_count / 64 + 1), mData(new uint64_t[mBlocks])
+    clampedBits(const uint64_t bit_count, unsigned int filler) : mSize(bit_count), mBlocks(bit_count / 64 + 1)
     {
+        mData = std::make_unique<uint64_t[]>(mBlocks);
         std::fill_n(mData.get(), mBlocks, (filler) ? ONES : 0);
     }
 
-    clampedBits(const char *binary_string) : mSize(std::strlen(binary_string)), mBlocks(std::strlen(binary_string) / 64 + 1),
-                                             mData(new uint64_t[mBlocks])
+    clampedBits(const char *binary_string) : mSize(std::strlen(binary_string)), mBlocks(std::strlen(binary_string) / 64 + 1)
     {
+        mData = std::make_unique<uint64_t[]>(mBlocks);
         std::fill_n(mData.get(), mBlocks, 0);
         if (!is_binary_str(binary_string))
             return;
@@ -54,8 +55,8 @@ public:
 
     clampedBits(const uint64_t bitsData) : mSize(clampedBits::bitlen(bitsData)), mBlocks(1), mData(new uint64_t[1]{bitsData}) {}
 
-    clampedBits(const clampedBits &other) : mSize(other.mSize), mBlocks(other.mBlocks), mData(new uint64_t[mBlocks])
-    {
+    clampedBits(const clampedBits &other) : mSize(other.mSize), mBlocks(other.mBlocks){
+        mData = std::make_unique<uint64_t[]>(mBlocks);
         std::copy_n(other.mData.get(), mBlocks, mData.get());
     }
 
@@ -115,7 +116,14 @@ public:
         }
         return result;
     }
-
+    friend bool operator>=(const clampedBits& lhs, const clampedBits& rhs)
+    {
+        return lhs > rhs || lhs == rhs;
+    }
+    friend bool operator<=(const clampedBits& lhs, const clampedBits& rhs)
+    {
+        return lhs < rhs || lhs == rhs;
+    }
     friend bool operator<(const clampedBits &lhs, const clampedBits &rhs)
     {
         bool result = false;
