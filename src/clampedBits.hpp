@@ -99,6 +99,40 @@ public:
         return !(lhs == rhs);
     }
 
+    friend bool operator>(const clampedBits &lhs, const clampedBits &rhs)
+    {
+        bool result = false;
+        uint64_t size = std::max(lhs.mBlocks, rhs.mBlocks);
+        for (uint64_t block_idx = 0; block_idx < size; ++block_idx)
+        {
+            uint64_t left = 0, right = 0;
+            if (block_idx < lhs.mBlocks)
+                left = lhs.mData[block_idx];
+            if (block_idx < rhs.mBlocks)
+                right = rhs.mData[block_idx];
+            result = (left > right) ? true : (result && left == right) ? true
+                                                                       : false;
+        }
+        return result;
+    }
+
+    friend bool operator<(const clampedBits &lhs, const clampedBits &rhs)
+    {
+        bool result = false;
+        uint64_t size = std::max(lhs.mBlocks, rhs.mBlocks);
+        for (uint64_t block_idx = 0; block_idx < size; ++block_idx)
+        {
+            uint64_t left = 0, right = 0;
+            if (block_idx < lhs.mBlocks)
+                left = lhs.mData[block_idx];
+            if (block_idx < rhs.mBlocks)
+                right = rhs.mData[block_idx];
+            result = (left < right) ? true : (result && left == right) ? true
+                                                                       : false;
+        }
+        return result;
+    }
+
     clampedBits operator<<(const uint64_t count)
     {
         clampedBits temp(mSize + count, 0);
@@ -240,12 +274,22 @@ public:
     {
         if (bit_count <= mSize)
             return;
-        auto additional_size = bit_count - mSize;
-        auto additional_blocks = additional_size / 64 + 1;
-        auto newData = std::make_unique<uint64_t[]>(mBlocks + additional_blocks);
-        std::fill_n(newData.get(), mBlocks + additional_blocks, filler ? ONES : 0);
-        std::copy_n(mData.get(), mBlocks, newData.get());
-        mData.swap(newData);
+        uint64_t additional_size = bit_count - mSize, additional_blocks = (mSize + bit_count) / 64 + 1;
+        std::unique_ptr<uint64_t[]> new_data = std::make_unique<uint64_t[]>(mBlocks + additional_blocks);
+        // Copy for
+        for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
+        {
+            new_data[block_idx] = mData[block_idx];
+        }
+        // Filler for
+        for (uint64_t block_idx = mBlocks; block_idx < mBlocks + additional_blocks; ++block_idx)
+        {
+            new_data[block_idx] = (filler) ? ONES : 0;
+        }
+        uint64_t block = mData[mBlocks - 1], block_bits = mSize % 64;
+        block = block | (~(1ull << block_bits) << (64 - block_bits));
+        block = block & ~(~(1ull << block_bits) << (64 - block_bits));
+        mData.swap(new_data);
         mBlocks += additional_blocks;
         mSize += additional_size;
     }
