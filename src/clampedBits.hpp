@@ -12,8 +12,8 @@
 
 class clampedBits
 {
-    std::unique_ptr<uint64_t[]> mData;
     uint64_t mSize, mBlocks;
+    std::unique_ptr<uint64_t[]> mData;
     static uint64_t bitlen(uint64_t i)
     {
         if (i < 2)
@@ -55,7 +55,8 @@ public:
 
     clampedBits(const uint64_t bitsData) : mSize(clampedBits::bitlen(bitsData)), mBlocks(1), mData(new uint64_t[1]{bitsData}) {}
 
-    clampedBits(const clampedBits &other) : mSize(other.mSize), mBlocks(other.mBlocks){
+    clampedBits(const clampedBits &other) : mSize(other.mSize), mBlocks(other.mBlocks)
+    {
         mData = std::make_unique<uint64_t[]>(mBlocks);
         std::copy_n(other.mData.get(), mBlocks, mData.get());
     }
@@ -116,11 +117,11 @@ public:
         }
         return result;
     }
-    friend bool operator>=(const clampedBits& lhs, const clampedBits& rhs)
+    friend bool operator>=(const clampedBits &lhs, const clampedBits &rhs)
     {
         return lhs > rhs || lhs == rhs;
     }
-    friend bool operator<=(const clampedBits& lhs, const clampedBits& rhs)
+    friend bool operator<=(const clampedBits &lhs, const clampedBits &rhs)
     {
         return lhs < rhs || lhs == rhs;
     }

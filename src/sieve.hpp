@@ -37,7 +37,6 @@ public:
     {
         if (number >= mData.size())
             throw std::out_of_range("Given number is too large for this sieve");
-        uint64_t start, step = 2;
         for (auto idx = number - (!(number & 1) ? 1 : 2); idx >= 2; idx -= 2)
         {
             if (mData.at(idx))
