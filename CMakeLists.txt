@@ -9,4 +9,5 @@ add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 add_executable(primesProject main.cpp
         src/sieve.hpp
         src/clampedBits.hpp
+        src/integer.hpp
 )
