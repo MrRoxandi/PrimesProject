@@ -14,15 +14,7 @@ class clampedBits
 {
     uint64_t mSize, mBlocks;
     std::unique_ptr<uint64_t[]> mData;
-    static uint64_t bitlen(uint64_t i)
-    {
-        if (i < 2)
-            return 1;
-        if (i == 2)
-            return 2;
-        else
-            return static_cast<uint64_t>(std::ceil(std::log2(i)));
-    }
+
     static bool is_binary_str(const char *str)
     {
         for (uint64_t idx = 0; str[idx] != '\0'; ++idx)
@@ -33,7 +25,15 @@ class clampedBits
 
 public:
     static constexpr uint64_t ONES = std::numeric_limits<uint64_t>::max();
-
+    static uint64_t bitlen(uint64_t i)
+    {
+        if (i < 2)
+            return 1;
+        if (i == 2)
+            return 2;
+        else
+            return static_cast<uint64_t>(std::ceil(std::log2(i)));
+    }
     clampedBits(const uint64_t bit_count, unsigned int filler) : mSize(bit_count), mBlocks(bit_count / 64 + 1)
     {
         mData = std::make_unique<uint64_t[]>(mBlocks);
@@ -163,7 +163,7 @@ public:
     unsigned int operator[](const uint64_t position) const
     {
         if (position >= mSize)
-            throw std::out_of_range("");
+            return 0;
         return (mData[position / 64] >> (position % 64)) & 1;
     }
 
@@ -268,6 +268,12 @@ public:
         std::for_each_n(mData.get(), mBlocks, [=](uint64_t &item)
                         { item = (bit) ? ONES : 0; });
     }
+    /**
+     * @brief Позволяет установить конкретный бит в конкретное значение.
+     *
+     * @param position Индекс интересующего бита. Если больше размера контейнера, будет проигнорирован.
+     * @param bit Значение интересующего нас бита.
+     */
     void set(const uint64_t position, const unsigned int bit)
     {
         if (position >= mSize)
@@ -279,6 +285,11 @@ public:
         mData[position / 64] = new_block;
     }
 
+    /**
+     * \brief Позволяет увеличивать размер контейнера битов.
+     * \param bit_count Количество битов, которое нужно иметь в контейнере (больше, чем текущий размер контейнера).
+     * \param filler Значение, которым будет заполнено новое пространство в контейнере (по умолчанию 0).
+     */
     void expand(const uint64_t bit_count, const unsigned int filler = 0)
     {
         if (bit_count <= mSize)
@@ -302,13 +313,23 @@ public:
         mBlocks += additional_blocks;
         mSize += additional_size;
     }
-
+    /**
+     * @brief Позволяет получить значение конкретного бита.
+     *
+     * @param position Позииция интересующего бита. Значение больше размера контейнера будет проигнорировано.
+     * @return unsigned int
+     */
     [[nodiscard]] unsigned int at(const uint64_t position) const
     {
         if (position >= mSize)
             return 0;
         return (mData[position / 64] >> (position % 64)) & 1;
     }
+    /**
+     * @brief Преорбразует битовый контейнер в строчку со значениями битов.
+     *
+     * @return std::string
+     */
     std::string str() const
     {
         std::string result;
@@ -377,4 +398,19 @@ public:
         return result;
     }
     const uint64_t &size() const { return mSize; }
+    /**
+     * @brief Removes leading zeros
+     *
+     */
+    void trim()
+    {
+        for (uint64_t idx = mSize - 1; idx > 0; --idx)
+        {
+            if (at(idx))
+            {
+                mSize = idx + 1;
+                break;
+            }
+        }
+    }
 };
