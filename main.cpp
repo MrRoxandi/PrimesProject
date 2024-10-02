@@ -4,7 +4,9 @@
 
 int main()
 {
-    integer number(clampedBits("1010101010101010101010101010101010101010101"));
-    integer number2(clampedBits("01010101010101010101010101010101010101010101"));
-    std::cout << number2 << '\n';
+    clampedBits left = "101011101011101011101011101011001011101011101011101011101011101011101011";
+    clampedBits right = "101011101011101011101011101011101011101011101011101011101011101011101011";
+    std::cout << "Left:\t" << left << '\n';
+    std::cout << "Right:\t" << right << '\n';
+    std::cout << std::boolalpha << (left < right) << '\n';
 }
