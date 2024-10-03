@@ -28,7 +28,7 @@ class clampedBits {
     return true;
   }
   static uint64_t get_front_bits(uint64_t number, uint64_t count) {
-    return (ONES >> (64 - count)) & number;
+    return number >> (64 - count);
   }
   static uint64_t get_last_bits(uint64_t number, uint64_t count) {
     return ~(1ull << (count)) & number;
@@ -445,7 +445,6 @@ public:
 
     static const char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 
-    // Проверка на ноль
     bool is_zero = true;
     for (uint64_t i = 0; i < mBlocks; ++i) {
       if (mData[i] != 0) {
@@ -457,32 +456,23 @@ public:
       return "0";
     }
 
-    // Копия текущих битов для манипуляций
     clampedBits num(*this);
     std::stringstream ss;
 
-    while (num != clampedBits(1, 0)) { // Пока num не равен нулю
+    while (num != clampedBits(1, 0)) {
       uint64_t remainder = 0;
-      // Результат деления будет храниться обратно в num
-      // Начинаем с самого старшего блока
       for (int64_t block_idx = num.mBlocks - 1; block_idx >= 0; --block_idx) {
-        // Смещаем остаток на 64 бита влево и добавляем текущий блок
         __uint128_t temp =
             (__uint128_t(remainder) << 64) | num.mData[block_idx];
-        // Делим на base
         num.mData[block_idx] = temp / base;
-        // Остаток
         remainder = temp % base;
       }
 
-      // Убираем ведущие нули блоков
       clampedBits::trim(num);
 
-      // Добавляем символ остатка в строку
       ss << digits[remainder];
     }
 
-    // Переворачиваем строку, так как остатки записываются в обратном порядке
     std::string result = ss.str();
     std::reverse(result.begin(), result.end());
     return result;
