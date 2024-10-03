@@ -35,6 +35,18 @@ class clampedBits
     {
         return ~(1ull << (count)) & number;
     }
+    static void trim(clampedBits &bits)
+    {
+        uint64_t count_top_zeros = 0, new_blocks = 1;
+        for (int64_t bit_idx = bits.mSize - 1; !bits[bit_idx] && bit_idx >= 0; --bit_idx)
+            count_top_zeros += 1;
+        new_blocks = (bits.mSize - count_top_zeros) / 64 + 1;
+        std::unique_ptr<uint64_t[]> new_data = std::make_unique<uint64_t[]>(new_blocks);
+        std::copy_n(bits.mData.get(), new_blocks, new_data.get());
+        bits.mBlocks = new_blocks;
+        bits.mSize -= count_top_zeros;
+        bits.mData.swap(new_data);
+    }
 #pragma endregion
 
 public:
@@ -109,6 +121,50 @@ public:
             os << bits[bit_pos];
         return os;
     }
+#pragma endregion
+
+#pragma region unary operators
+
+    clampedBits operator+(const clampedBits &other) const
+    {
+        const uint64_t max_size = std::max(mSize, other.mSize);
+        clampedBits result(max_size + 1, 0);
+        uint64_t carry = 0;
+
+        for (uint64_t block_idx = 0; block_idx < result.mBlocks; ++block_idx)
+        {
+            uint64_t a = (block_idx < mBlocks) ? mData[block_idx] : 0;
+            uint64_t b = (block_idx < other.mBlocks) ? other.mData[block_idx] : 0;
+
+            uint64_t sum = a + b + carry;
+            result.mData[block_idx] = sum;
+            carry = (sum < a) || (sum < b);
+        }
+        clampedBits::trim(result);
+        return result;
+    }
+
+    clampedBits operator-(const clampedBits &other) const
+    {
+        if (*this < other)
+            return clampedBits(1, 0);
+
+        clampedBits result(mSize, 0);
+        int64_t borrow = 0;
+
+        for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
+        {
+            uint64_t a = mData[block_idx];
+            uint64_t b = (block_idx < other.mBlocks) ? other.mData[block_idx] : 0;
+
+            uint64_t diff = a - b - borrow;
+            result.mData[block_idx] = diff;
+            borrow = (a < b) || (static_cast<int64_t>(a) < borrow);
+        }
+        clampedBits::trim(result);
+        return result;
+    }
+
 #pragma endregion
 
 #pragma region eq operators
