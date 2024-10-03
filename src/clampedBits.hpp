@@ -1,14 +1,12 @@
 #pragma once
 #include <cstdint>
-#include <stdexcept>
 #include <limits>
 #include <memory>
 #include <ostream>
-#include <string_view>
 #include <string>
 #include <algorithm>
 #include <cstring>
-#include <cmath>
+#include <ranges>
 
 class clampedBits
 {
@@ -435,70 +433,61 @@ public:
     }
 
 #pragma endregion
+
     /**
      * @brief Converts bit container into a std::string with given base (default = 10).
      *
      * @param base The basis of the calculus system. Example: 2, 10, 16, ... etc.
      * @return std::string
      */
-    std::string base_str(unsigned int base = 10) const
+    std::string convert_to_base(unsigned int base = 10) const
     {
         if (base < 2 || base > 36)
+        {
             throw std::invalid_argument("Base must be between 2 and 36");
+        }
 
         if (mSize == 0)
+        {
             return "0";
+        }
 
+        constexpr char digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         std::string result;
+
+        // Create a copy of the current object to perform division
         clampedBits temp(*this);
 
-        // Calculate the number of full blocks and bits in the last block
-        uint64_t fullBlocks = mSize / 64;
-        uint64_t lastBits = mSize % 64;
-
-        while (temp.mSize > 0)
+        do
         {
             uint64_t remainder = 0;
-            bool all_zero = true;
+            bool nonzero = false;
 
-            // Process full blocks
-            for (int64_t i = fullBlocks - 1; i >= 0; --i)
+            for (int64_t i = temp.mBlocks - 1; i >= 0; --i)
             {
-                uint64_t current = remainder << 32 | (temp.mData[i] >> 32);
+                uint64_t current = (remainder << 32) | (temp.mData[i] >> 32);
                 uint64_t quotient = current / base;
                 remainder = current % base;
 
-                current = remainder << 32 | (temp.mData[i] & 0xFFFFFFFF);
+                current = (remainder << 32) | (temp.mData[i] & 0xFFFFFFFF);
                 quotient = (quotient << 32) | (current / base);
                 remainder = current % base;
 
                 temp.mData[i] = quotient;
-
-                if (quotient != 0)
-                    all_zero = false;
+                nonzero |= (quotient != 0);
             }
 
-            // Process the last partial block
-            if (lastBits > 0)
+            result.push_back(digits[remainder]);
+
+            // Shrink temp if possible
+            while (temp.mBlocks > 1 && temp.mData[temp.mBlocks - 1] == 0)
             {
-                uint64_t mask = (1ULL << lastBits) - 1;
-                uint64_t current = remainder << lastBits | (temp.mData[fullBlocks] & mask);
-                uint64_t quotient = current / base;
-                remainder = current % base;
-
-                temp.mData[fullBlocks] = quotient & mask;
-
-                if (quotient != 0)
-                    all_zero = false;
+                --temp.mBlocks;
             }
 
-            char digit = remainder < 10 ? '0' + remainder : 'A' + remainder - 10;
-            result = digit + result;
+        } while (temp.mBlocks > 1 || temp.mData[0] != 0);
 
-            if (all_zero)
-                break;
-        }
-
+        std::ranges::reverse(result);
         return result;
     }
 };
