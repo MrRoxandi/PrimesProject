@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <cstring>
 #include <ranges>
-#include <ranges>
 
 class clampedBits
 {
@@ -75,24 +74,6 @@ public:
 #pragma region constructors
     clampedBits(const uint64_t bit_count, unsigned int filler)
         : mSize(bit_count), mBlocks(bit_count / 64 + 1)
-          /**
-           * @brief Count how many bits needs to represent an integer
-           *
-           * @param number Just an integer
-           * @return uint64_t
-           */
-          static uint64_t bitlen(int64_t number)
-    {
-        if (number < 3)
-            return number == 2 ? 2 : 1;
-        else
-            return static_cast<uint64_t>(std::ceil(std::log2(std::abs(number))));
-    }
-#pragma endregion
-
-#pragma region constructors
-    clampedBits(const uint64_t bit_count, unsigned int filler)
-        : mSize(bit_count), mBlocks(bit_count / 64 + 1)
     {
         mData = std::make_unique<uint64_t[]>(mBlocks);
         std::fill_n(mData.get(), mBlocks, (filler) ? ONES : 0);
@@ -140,6 +121,7 @@ public:
             os << bits[bit_pos];
         return os;
     }
+
 #pragma endregion
 
 #pragma region unary operators
@@ -187,607 +169,259 @@ public:
 #pragma endregion
 
 #pragma region eq operators
-    friend bool operator==(const clampedBits &lhs, const clampedBits &rhs)
+    friend std::strong_ordering operator<=>(const clampedBits &lhs, const clampedBits &rhs)
     {
-        auto max_blocks = std::max(lhs.size(), rhs.size());
+        uint64_t max_blocks = std::max(lhs.mBlocks, rhs.mBlocks);
         uint64_t left = 0, right = 0;
-        for (uint64_t block_idx = 0; block_idx < max_blocks; ++block_idx)
+        for (int64_t block_idx = max_blocks - 1; block_idx >= 0; block_idx -= 1)
         {
-            left = (block_idx < lhs.mBlocks) ? lhs.mData[block_idx] : 0;
-            right = (block_idx < rhs.mBlocks) ? rhs.mData[block_idx] : 0;
-            auto max_blocks = std::max(lhs.size(), rhs.size());
-            uint64_t left = 0, right = 0;
-            for (uint64_t block_idx = 0; block_idx < max_blocks; ++block_idx)
-            {
-                left = (block_idx < lhs.mBlocks) ? lhs.mData[block_idx] : 0;
-                right = (block_idx < rhs.mBlocks) ? rhs.mData[block_idx] : 0;
-                if (left ^ right)
-                    return false;
-            }
-            return true;
+            left = static_cast<uint64_t>(block_idx) < lhs.mBlocks ? lhs.mData[block_idx] : 0;
+            right = static_cast<uint64_t>(block_idx) < rhs.mBlocks ? rhs.mData[block_idx] : 0;
+            if (left < right)
+                return std::strong_ordering::less;
+            if (left > right)
+                return std::strong_ordering::greater;
         }
-        friend bool operator!=(const clampedBits &lhs, const clampedBits &rhs) { return !(lhs == rhs); }
+        return std::strong_ordering::equal;
+    }
+    friend bool operator==(const clampedBits &lhs, const clampedBits &rhs) { return (lhs <=> rhs) == std::strong_ordering::equal; }
+    friend bool operator!=(const clampedBits &lhs, const clampedBits &rhs) { return !(lhs == rhs); }
 
-        friend bool operator==(const clampedBits &lhs, uint64_t rhs) { return lhs == clampedBits(rhs); }
-        friend bool operator!=(const clampedBits &lhs, uint64_t rhs) { return !(lhs == rhs); }
+    friend bool operator==(const clampedBits &lhs, uint64_t rhs) { return lhs == clampedBits(rhs); }
+    friend bool operator!=(const clampedBits &lhs, uint64_t rhs) { return !(lhs == rhs); }
 
-        friend bool operator==(const clampedBits &lhs, double rhs) { return lhs == clampedBits(static_cast<uint64_t>(rhs)); }
-        friend bool operator!=(const clampedBits &lhs, double rhs) { return !(lhs == rhs); }
+    friend bool operator==(const clampedBits &lhs, double rhs) { return lhs == clampedBits(static_cast<uint64_t>(rhs)); }
+    friend bool operator!=(const clampedBits &lhs, double rhs) { return !(lhs == rhs); }
 
-        friend bool operator==(const clampedBits &lhs, const char *binary_str) { return lhs == clampedBits(binary_str); }
-        friend bool operator!=(const clampedBits &lhs, const char *binary_str) { return !(lhs == binary_str); }
+    friend bool operator==(const clampedBits &lhs, const char *binary_str) { return lhs == clampedBits(binary_str); }
+    friend bool operator!=(const clampedBits &lhs, const char *binary_str) { return !(lhs == binary_str); }
 #pragma endregion
 
 #pragma region comp operators
-        friend bool operator>(const clampedBits &lhs, const clampedBits &rhs)
-        {
-            uint64_t max_blocks = std::max(lhs.mBlocks, rhs.mBlocks);
-            uint64_t left = 0, right = 0;
-            for (int64_t block_idx = max_blocks - 1; block_idx >= 0; block_idx -= 1)
-            {
-                left = static_cast<uint64_t>(block_idx) < lhs.mBlocks ? lhs.mData[block_idx] : 0;
-                right = static_cast<uint64_t>(block_idx) < rhs.mBlocks ? rhs.mData[block_idx] : 0;
-                if (left < right)
-                    return false;
-                if (left > right)
-                    return true;
-            }
-            return false;
-        }
-        friend bool operator>=(const clampedBits &lhs, const clampedBits &rhs)
-        {
-            uint64_t max_blocks = std::max(lhs.mBlocks, rhs.mBlocks);
-            uint64_t left = 0, right = 0;
-            for (int64_t block_idx = max_blocks - 1; block_idx >= 0; block_idx -= 1)
-            {
-                left = static_cast<uint64_t>(block_idx) < lhs.mBlocks ? lhs.mData[block_idx] : 0;
-                right = static_cast<uint64_t>(block_idx) < rhs.mBlocks ? rhs.mData[block_idx] : 0;
-                if (left < right)
-                    return false;
-                if (left > right)
-                    return true;
-            }
-            return true;
-        }
+    friend bool operator>(const clampedBits &lhs, const clampedBits &rhs) { return lhs <=> rhs == std::strong_ordering::greater; }
+    friend bool operator>=(const clampedBits &lhs, const clampedBits &rhs)
+    {
+        auto val = lhs <=> rhs;
+        return val == std::strong_ordering::greater || val == std::strong_ordering::equal;
+    }
 
-        friend bool operator<(const clampedBits &lhs, const clampedBits &rhs)
-        {
-            uint64_t max_blocks = std::max(lhs.mBlocks, rhs.mBlocks);
-            uint64_t left = 0, right = 0;
-            for (int64_t block_idx = max_blocks - 1; block_idx >= 0; block_idx -= 1)
-            {
-                left = static_cast<uint64_t>(block_idx) < lhs.mBlocks ? lhs.mData[block_idx] : 0;
-                right = static_cast<uint64_t>(block_idx) < rhs.mBlocks ? rhs.mData[block_idx] : 0;
-                if (left > right)
-                    return false;
-                if (left < right)
-                    return true;
-            }
-            return false;
-        }
-        friend bool operator<=(const clampedBits &lhs, const clampedBits &rhs)
-        {
-            uint64_t max_blocks = std::max(lhs.mBlocks, rhs.mBlocks);
-            uint64_t left = 0, right = 0;
-            for (int64_t block_idx = max_blocks - 1; block_idx >= 0; block_idx -= 1)
-            {
-                left = static_cast<uint64_t>(block_idx) < lhs.mBlocks ? lhs.mData[block_idx] : 0;
-                right = static_cast<uint64_t>(block_idx) < rhs.mBlocks ? rhs.mData[block_idx] : 0;
-                if (left > right)
-                    return false;
-                if (left < right)
-                    return true;
-            }
-            return true;
-        }
+    friend bool operator<(const clampedBits &lhs, const clampedBits &rhs) { return lhs <=> rhs == std::strong_ordering::less; }
+    friend bool operator<=(const clampedBits &lhs, const clampedBits &rhs)
+    {
+        auto val = lhs <=> rhs;
+        return val == std::strong_ordering::less || val == std::strong_ordering::equal;
+    }
 #pragma endregion
 
-#pragma region bits operators
-// clampedBits operator|(const clampedBits& other) const {
-//     clampedBits result(std::max(mSize, other.mSize), 0);
-//     for(uint64_t block_idx = 0; block_idx)
-// }
-#pragma endregion
-        clampedBits operator<<(const uint64_t count)
-        {
-            clampedBits temp(mSize + count, 0);
-            for (uint64_t idx = count; idx < temp.mSize; ++idx)
-                temp.set(idx, at(idx - count));
-            return temp;
-        }
-        clampedBits operator>>(const uint64_t count) const
-        {
-            if (count >= mSize)
-                return clampedBits(1, 0);
-            clampedBits temp(mSize - count, 0);
-            for (uint64_t idx = 0; idx < temp.mSize; ++idx)
-            {
-                temp.set(idx, at(idx + count));
-            }
-            return temp;
-        }
+#pragma region usefull methods
+    /**
+     * @brief Позволяет установить конкретный бит в конкретное значение.
+     *
+     * @param position Индекс интересующего бита. Если больше размера контейнера, будет проигнорирован.
+     * @param bit Значение интересующего нас бита.
+     */
+    void set(uint64_t position, unsigned int bit)
+    {
+        if (position >= mSize)
+            return;
+        uint64_t new_state = 1ull << (position % 64);
+        if (bit)
+            mData[position / 64] |= new_state;
+        else
+            mData[position / 64] &= ~new_state;
+    }
 
-        clampedBits operator|(const clampedBits &other) const
-        {
-            clampedBits temp(std::max(mSize, other.mSize), 0);
-            for (uint64_t block_idx = 0; block_idx < temp.mBlocks; ++block_idx)
-            {
-                auto first = 0ull, second = 0ull;
-                if (block_idx < mBlocks)
-                    first = mData[block_idx];
-                if (block_idx < other.mBlocks)
-                    second = other.mData[block_idx];
-                temp.mData[block_idx] = first | second;
-            }
-            return temp;
-        }
-        void operator|=(const clampedBits &other)
-        {
-            expand(std::max(mSize, other.mSize), 0);
-            for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
-            {
-                auto first = 0ull, second = 0ull;
-                if (block_idx < mBlocks)
-                    first = mData[block_idx];
-                if (block_idx < other.mBlocks)
-                    second = other.mData[block_idx];
-                mData[block_idx] = first | second;
-            }
-        }
-        clampedBits operator&(const clampedBits &other) const
-        {
-            clampedBits temp(std::max(mSize, other.mSize), 0);
-            for (uint64_t block_idx = 0; block_idx < temp.mBlocks; ++block_idx)
-            {
-                auto first = 0ull, second = 0ull;
-                if (block_idx < mBlocks)
-                    first = mData[block_idx];
-                if (block_idx < other.mBlocks)
-                    second = other.mData[block_idx];
-                temp.mData[block_idx] = first & second;
-            }
-            return temp;
-        }
-        void operator&=(const clampedBits &other)
-        {
-            expand(std::max(mSize, other.mSize), 0);
-            for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
-            {
-                auto first = 0ull, second = 0ull;
-                if (block_idx < mSize)
-                    first = mData[block_idx];
-                if (block_idx < other.mSize)
-                    second = other.mData[block_idx];
-                mData[block_idx] = first & second;
-            }
-        }
-        clampedBits operator^(const clampedBits &other) const
-        {
-            clampedBits temp(std::max(mSize, other.mSize), 0);
-            for (uint64_t block_idx = 0; block_idx < temp.mBlocks; ++block_idx)
-            {
-                auto first = 0ull, second = 0ull;
-                if (block_idx < mBlocks)
-                    first = mData[block_idx];
-                if (block_idx < other.mBlocks)
-                    second = other.mData[block_idx];
-                temp.mData[block_idx] = first ^ second;
-            }
-            return temp;
-        }
-        void operator^=(const clampedBits &other)
-        {
-            expand(std::max(mSize, other.mSize), 0);
-            for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
-            {
-                auto first = 0ull, second = 0ull;
-                if (block_idx < mBlocks)
-                    first = mData[block_idx];
-                if (block_idx < other.mBlocks)
-                    second = other.mData[block_idx];
-                mData[block_idx] = first ^ second;
-            }
-        }
-        clampedBits operator~() const
-        {
-            clampedBits temp(*this);
-            std::for_each_n(temp.mData.get(), temp.mBlocks, [](uint64_t &item)
-                            { item = ~item; });
-            return temp;
-        }
-        friend std::ostream &operator<<(std::ostream &os, const clampedBits &bits)
-        {
-            for (uint64_t idx = 0; idx < bits.mSize; ++idx)
-            {
-                os << ((bits.mData[idx / 64] >> (idx % 64)) & 1);
-            }
-            return os;
-        }
-        void set_all(const unsigned int bit)
-        {
-            std::for_each_n(mData.get(), mBlocks, [=](uint64_t &item)
-                            { item = (bit) ? ONES : 0; });
-        }
-        /**
-         * @brief Позволяет установить конкретный бит в конкретное значение.
-         *
-         * @param position Индекс интересующего бита. Если больше размера контейнера, будет проигнорирован.
-         * @param bit Значение интересующего нас бита.
-         */
-        void set(uint64_t position, unsigned int bit)
-        {
-            if (position >= mSize)
-                return;
-            uint64_t new_state = 1ull << (position % 64);
-            if (bit)
-                mData[position / 64] |= new_state;
-            else
-                mData[position / 64] &= ~new_state;
-        }
+    /**
+     * @brief Sets all bits to given value
+     *
+     * @param bit Value that we want to set in all position
+     */
+    void set_all(const unsigned int bit)
+    {
+        uint64_t block = (bit) ? ONES : 0;
+        for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
+            mData[block_idx] = block;
+    }
 
-        /**
-         * @brief Sets all bits to given value
-         *
-         * @param bit Value that we want to set in all position
-         */
-        void set_all(const unsigned int bit)
-        {
-            uint64_t block = (bit) ? ONES : 0;
-            for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
-                mData[block_idx] = block;
-        }
+    /**
+     * @brief Allows you to get the value of a specific bit.
+     *
+     * @param position The position of the bit of interest. A value larger than the container size will be ignored.
+     * @return unsigned int
+     */
+    [[nodiscard]] unsigned int at(const uint64_t position) const
+    {
+        if (position >= mSize)
+            return 0;
+        return (mData[position / 64] >> (position % 64)) & 1;
+    }
 
-        /**
-         * @brief Allows you to get the value of a specific bit.
-         *
-         * @param position The position of the bit of interest. A value larger than the container size will be ignored.
-         * @return unsigned int
-         */
-        [[nodiscard]] unsigned int at(const uint64_t position) const
-        {
-            if (position >= mSize)
-                return 0;
-            return (mData[position / 64] >> (position % 64)) & 1;
-        }
+    /**
+     * @brief Transforms the bit container into a string with bit values.
+     *
+     * @return std::string
+     */
+    std::string str() const
+    {
+        std::string result(mSize, '0');
+        for (uint64_t idx = 0; idx < mSize; ++idx)
+            result.at(idx) = at(idx) + '0';
+        return result;
+    }
 
-        /**
-         * @brief Transforms the bit container into a string with bit values.
-         *
-         * @return std::string
-         */
-        std::string str() const
-        {
-            std::string result(mSize, '0');
-            for (uint64_t idx = 0; idx < mSize; ++idx)
-                result.at(idx) = at(idx) + '0';
-            return result;
-        }
+    /**
+     * \brief Allows you to increase the size of the bit container.
+     * \param new_size The number of bits to have in the container (larger than the current container size).
+     * \param filler The value that will be used to fill the new space in the container (default is 0).
+     */
+    void expand(const uint64_t new_size, const unsigned int filler = 0)
+    {
+        if (new_size <= mSize)
+            return;
+        uint64_t new_blocks = new_size / 64 + 1;
+        std::unique_ptr<uint64_t[]> new_data = std::make_unique<uint64_t[]>(new_blocks);
+        std::copy_n(mData.get(), mBlocks, new_data.get());
+        if (filler)
+            new_data[mBlocks - 1] |= ONES << (mSize % 64);
+        std::fill_n(new_data.get() + mBlocks, new_blocks - mBlocks, filler ? ONES : 0);
+        mData.swap(new_data);
+        mBlocks = new_blocks;
+        mSize = new_size;
+    }
 
-        /**
-         * \brief Allows you to increase the size of the bit container.
-         * \param new_size The number of bits to have in the container (larger than the current container size).
-         * \param filler The value that will be used to fill the new space in the container (default is 0).
-         */
-        void expand(const uint64_t new_size, const unsigned int filler = 0)
-        {
-            if (new_size <= mSize)
-                return;
-            uint64_t new_blocks = new_size / 64 + 1;
-            std::unique_ptr<uint64_t[]> new_data = std::make_unique<uint64_t[]>(new_blocks);
-            std::copy_n(mData.get(), mBlocks, new_data.get());
-            if (filler)
-                new_data[mBlocks - 1] |= ONES << (mSize % 64);
-            std::fill_n(new_data.get() + mBlocks, new_blocks - mBlocks, filler ? ONES : 0);
-            mData.swap(new_data);
-            mBlocks = new_blocks;
-            mSize = new_size;
-        }
-
-        /**
-         * @brief Returns count of bits in container.
-         *
-         * @return const uint64_t&
-         */
-        const uint64_t &size() const { return mSize; }
+    /**
+     * @brief Returns count of bits in container.
+     *
+     * @return const uint64_t&
+     */
+    const uint64_t &size() const { return mSize; }
 #pragma endregion
 
 #pragma region bits operators
 
-        clampedBits operator<<(const uint64_t count) const
+    clampedBits operator<<(const uint64_t count) const
+    {
+        clampedBits result(mSize + count, 0);
+        uint64_t full_block_move = count / 64, bits_move = count % 64;
+        uint64_t carry = 0;
+        for (uint64_t block_idx = 0; block_idx < mBlocks; block_idx++)
         {
-            clampedBits result(mSize + count, 0);
-            uint64_t full_block_move = count / 64, bits_move = count % 64;
-            uint64_t carry = 0;
-            for (uint64_t block_idx = 0; block_idx < mBlocks; block_idx++)
-            {
-                result.mData[block_idx + full_block_move] = (mData[block_idx] << bits_move) | carry;
-                carry = get_front_bits(mData[block_idx], bits_move);
-                if (position >= mSize)
-                    return;
-                uint64_t new_state = 1ull << (position % 64);
-                if (bit)
-                    mData[position / 64] |= new_state;
-                else
-                    mData[position / 64] &= ~new_state;
-            }
-
-            /**
-             * @brief Sets all bits to given value
-             *
-             * @param bit Value that we want to set in all position
-             */
-            void set_all(const unsigned int bit)
-            {
-                uint64_t block = (bit) ? ONES : 0;
-                for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
-                    mData[block_idx] = block;
-            }
-
-            /**
-             * @brief Allows you to get the value of a specific bit.
-             *
-             * @param position The position of the bit of interest. A value larger than the container size will be ignored.
-             * @return unsigned int
-             */
-            [[nodiscard]] unsigned int at(const uint64_t position) const
-            {
-                if (position >= mSize)
-                    return 0;
-                return (mData[position / 64] >> (position % 64)) & 1;
-            }
-
-            /**
-             * @brief Transforms the bit container into a string with bit values.
-             *
-             * @return std::string
-             */
-            std::string str() const
-            {
-                std::string result(mSize, '0');
-                for (uint64_t idx = 0; idx < mSize; ++idx)
-                    result.at(idx) = at(idx) + '0';
-                return result;
-            }
-
-            /**
-             * \brief Allows you to increase the size of the bit container.
-             * \param new_size The number of bits to have in the container (larger than the current container size).
-             * \param filler The value that will be used to fill the new space in the container (default is 0).
-             */
-            void expand(const uint64_t new_size, const unsigned int filler = 0)
-            {
-                if (new_size <= mSize)
-                    return;
-                uint64_t new_blocks = new_size / 64 + 1;
-                std::unique_ptr<uint64_t[]> new_data = std::make_unique<uint64_t[]>(new_blocks);
-                std::copy_n(mData.get(), mBlocks, new_data.get());
-                if (filler)
-                    new_data[mBlocks - 1] |= ONES << (mSize % 64);
-                std::fill_n(new_data.get() + mBlocks, new_blocks - mBlocks, filler ? ONES : 0);
-                mData.swap(new_data);
-                mBlocks = new_blocks;
-                mSize = new_size;
-            }
-
-            /**
-             * @brief Returns count of bits in container.
-             *
-             * @return const uint64_t&
-             */
-            const uint64_t &size() const { return mSize; }
-#pragma endregion
-
-#pragma region bits operators
-
-            clampedBits operator<<(const uint64_t count) const
-            {
-                clampedBits result(mSize + count, 0);
-                uint64_t full_block_move = count / 64, bits_move = count % 64;
-                uint64_t carry = 0;
-                for (uint64_t block_idx = 0; block_idx < mBlocks; block_idx++)
-                {
-                    result.mData[block_idx + full_block_move] = (mData[block_idx] << bits_move) | carry;
-                    carry = get_front_bits(mData[block_idx], bits_move);
-                }
-                return result;
-            }
-            void operator<<=(const uint64_t count) void operator<<=(const uint64_t count)
-            {
-                uint64_t new_blocks = (mSize + count) / 64 + 1;
-                std::unique_ptr<uint64_t[]> new_data = std::make_unique<uint64_t[]>(new_blocks);
-                uint64_t full_block_move = count / 64, bits_move = count % 64;
-                uint64_t carry = 0;
-                for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
-                {
-                    new_data[block_idx + full_block_move] = (mData[block_idx] << bits_move) | carry;
-                    carry = get_front_bits(mData[block_idx], bits_move);
-                }
-                mData.swap(new_data);
-                mBlocks = new_blocks;
-                mSize += count;
-                uint64_t new_blocks = (mSize + count) / 64 + 1;
-                std::unique_ptr<uint64_t[]> new_data = std::make_unique<uint64_t[]>(new_blocks);
-                uint64_t full_block_move = count / 64, bits_move = count % 64;
-                uint64_t carry = 0;
-                for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
-                {
-                    new_data[block_idx + full_block_move] = (mData[block_idx] << bits_move) | carry;
-                    carry = get_front_bits(mData[block_idx], bits_move);
-                }
-                mData.swap(new_data);
-                mBlocks = new_blocks;
-                mSize += count;
-            }
-
-            clampedBits operator>>(const uint64_t count) const
-            {
-                if (count >= mSize)
-                    return clampedBits(1, 0);
-                clampedBits result(mSize - count, 0);
-                uint64_t full_block_move = count / 64, bits_move = count % 64;
-                uint64_t carry = 0;
-                for (uint64_t block_idx = 0; block_idx < mBlocks; block_idx++)
-                    clampedBits result(mSize - count, 0);
-                uint64_t full_block_move = count / 64, bits_move = count % 64;
-                uint64_t carry = 0;
-                for (uint64_t block_idx = 0; block_idx < mBlocks; block_idx++)
-                {
-                    result.mData[block_idx] = (mData[block_idx + full_block_move] >> bits_move) | carry;
-                    carry = get_last_bits(mData[block_idx + full_block_move], bits_move);
-                    result.mData[block_idx] = (mData[block_idx + full_block_move] >> bits_move) | carry;
-                    carry = get_last_bits(mData[block_idx + full_block_move], bits_move);
-                }
-                return result;
-                return result;
-            }
-            void operator>>=(const uint64_t count) void operator>>=(const uint64_t count)
-            {
-                if (count >= mSize)
-                {
-                    *this = clampedBits(1, 0);
-                    return;
-                }
-                uint64_t new_blocks = (mSize - count) / 64 + 1;
-                std::unique_ptr<uint64_t[]> new_data = std::make_unique<uint64_t[]>(new_blocks);
-                uint64_t full_block_move = count / 64, bits_move = count % 64;
-                uint64_t carry = 0;
-                for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
-                {
-                    new_data[block_idx] = (mData[block_idx + full_block_move] >> bits_move) | carry;
-                    carry = get_last_bits(mData[block_idx + full_block_move], bits_move);
-                }
-                mData.swap(new_data);
-                mBlocks = new_blocks;
-                mSize -= count;
-                if (count >= mSize)
-                {
-                    *this = clampedBits(1, 0);
-                    return;
-                }
-                uint64_t new_blocks = (mSize - count) / 64 + 1;
-                std::unique_ptr<uint64_t[]> new_data = std::make_unique<uint64_t[]>(new_blocks);
-                uint64_t full_block_move = count / 64, bits_move = count % 64;
-                uint64_t carry = 0;
-                for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
-                {
-                    new_data[block_idx] = (mData[block_idx + full_block_move] >> bits_move) | carry;
-                    carry = get_last_bits(mData[block_idx + full_block_move], bits_move);
-                }
-                mData.swap(new_data);
-                mBlocks = new_blocks;
-                mSize -= count;
-            }
-
-            clampedBits operator|(const clampedBits &other) const
-            {
-                clampedBits result(std::max(mSize, other.mSize), 0);
-                uint64_t left = 0, right = 0;
-                for (uint64_t block_idx = 0; block_idx < result.mBlocks; ++block_idx)
-                    clampedBits result(std::max(mSize, other.mSize), 0);
-                uint64_t left = 0, right = 0;
-                for (uint64_t block_idx = 0; block_idx < result.mBlocks; ++block_idx)
-                {
-                    left = block_idx < mBlocks ? mData[block_idx] : 0;
-                    right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
-                    result.mData[block_idx] = left | right;
-                    left = block_idx < mBlocks ? mData[block_idx] : 0;
-                    right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
-                    result.mData[block_idx] = left | right;
-                }
-                return result;
-                return result;
-            }
-            void operator|=(const clampedBits &other)
-            {
-                expand(std::max(mSize, other.mSize), 0);
-                uint64_t left = 0, right = 0;
-                uint64_t left = 0, right = 0;
-                for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
-                {
-                    left = block_idx < mBlocks ? mData[block_idx] : 0;
-                    right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
-                    mData[block_idx] = left | right;
-                    left = block_idx < mBlocks ? mData[block_idx] : 0;
-                    right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
-                    mData[block_idx] = left | right;
-                }
-            }
-
-            clampedBits operator&(const clampedBits &other) const
-            {
-                clampedBits result(std::max(mSize, other.mSize), 0);
-                uint64_t left = 0, right = 0;
-                for (uint64_t block_idx = 0; block_idx < result.mBlocks; ++block_idx)
-                    clampedBits result(std::max(mSize, other.mSize), 0);
-                uint64_t left = 0, right = 0;
-                for (uint64_t block_idx = 0; block_idx < result.mBlocks; ++block_idx)
-                {
-                    left = block_idx < mBlocks ? mData[block_idx] : 0;
-                    right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
-                    result.mData[block_idx] = left & right;
-                    left = block_idx < mBlocks ? mData[block_idx] : 0;
-                    right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
-                    result.mData[block_idx] = left & right;
-                }
-                return result;
-                return result;
-            }
-            void operator&=(const clampedBits &other)
-            {
-                expand(std::max(mSize, other.mSize), 0);
-                uint64_t left = 0, right = 0;
-                uint64_t left = 0, right = 0;
-                for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
-                {
-                    left = block_idx < mBlocks ? mData[block_idx] : 0;
-                    right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
-                    mData[block_idx] = left & right;
-                    left = block_idx < mBlocks ? mData[block_idx] : 0;
-                    right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
-                    mData[block_idx] = left & right;
-                }
-            }
-
-            clampedBits operator^(const clampedBits &other) const
-            {
-                clampedBits result(std::max(mSize, other.mSize), 0);
-                uint64_t left = 0, right = 0;
-                for (uint64_t block_idx = 0; block_idx < result.mBlocks; ++block_idx)
-                    clampedBits result(std::max(mSize, other.mSize), 0);
-                uint64_t left = 0, right = 0;
-                for (uint64_t block_idx = 0; block_idx < result.mBlocks; ++block_idx)
-                {
-                    left = block_idx < mBlocks ? mData[block_idx] : 0;
-                    right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
-                    result.mData[block_idx] = left ^ right;
-                    left = block_idx < mBlocks ? mData[block_idx] : 0;
-                    right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
-                    result.mData[block_idx] = left ^ right;
-                }
-
-                char digit = remainder < 10 ? '0' + remainder : 'A' + remainder - 10;
-                result = digit + result;
-
-                if (all_zero)
-                    break;
-            }
-
-            return result;
+            result.mData[block_idx + full_block_move] = (mData[block_idx] << bits_move) | carry;
+            carry = get_front_bits(mData[block_idx], bits_move);
         }
-        const uint64_t &size() const { return mSize; }
-        /**
-         * @brief Removes leading zeros
-         *
-         */
-        void trim()
+        return result;
+    }
+    void operator<<=(const uint64_t count)
+    {
+        uint64_t new_blocks = (mSize + count) / 64 + 1;
+        std::unique_ptr<uint64_t[]> new_data = std::make_unique<uint64_t[]>(new_blocks);
+        uint64_t full_block_move = count / 64, bits_move = count % 64;
+        uint64_t carry = 0;
+        for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
         {
-            for (uint64_t idx = mSize - 1; idx > 0; --idx)
-            {
-                if (at(idx))
-                {
-                    mSize = idx + 1;
-                    break;
-                }
-            }
+            new_data[block_idx + full_block_move] = (mData[block_idx] << bits_move) | carry;
+            carry = get_front_bits(mData[block_idx], bits_move);
         }
-    };
+        mData.swap(new_data);
+        mBlocks = new_blocks;
+        mSize += count;
+    }
+
+    clampedBits operator>>(const uint64_t count) const
+    {
+        if (count >= mSize)
+            return clampedBits(1, 0);
+        clampedBits result(mSize - count, 0);
+        uint64_t full_block_move = count / 64, bits_move = count % 64;
+        uint64_t carry = 0;
+        for (uint64_t block_idx = 0; block_idx < mBlocks; block_idx++)
+        {
+            result.mData[block_idx] = (mData[block_idx + full_block_move] >> bits_move) | carry;
+            carry = get_last_bits(mData[block_idx + full_block_move], bits_move);
+        }
+        return result;
+    }
+    void operator>>=(const uint64_t count)
+    {
+        if (count >= mSize)
+        {
+            *this = clampedBits(1, 0);
+            return;
+        }
+        uint64_t new_blocks = (mSize - count) / 64 + 1;
+        std::unique_ptr<uint64_t[]> new_data = std::make_unique<uint64_t[]>(new_blocks);
+        uint64_t full_block_move = count / 64, bits_move = count % 64;
+        uint64_t carry = 0;
+        for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
+        {
+            new_data[block_idx] = (mData[block_idx + full_block_move] >> bits_move) | carry;
+            carry = get_last_bits(mData[block_idx + full_block_move], bits_move);
+        }
+        mData.swap(new_data);
+        mBlocks = new_blocks;
+        mSize -= count;
+    }
+
+    clampedBits operator|(const clampedBits &other) const
+    {
+        clampedBits result(std::max(mSize, other.mSize), 0);
+        uint64_t left = 0, right = 0;
+        for (uint64_t block_idx = 0; block_idx < result.mBlocks; ++block_idx)
+        {
+            left = block_idx < mBlocks ? mData[block_idx] : 0;
+            right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
+            result.mData[block_idx] = left | right;
+        }
+        return result;
+    }
+    void operator|=(const clampedBits &other)
+    {
+        expand(std::max(mSize, other.mSize), 0);
+        uint64_t left = 0, right = 0;
+        for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
+        {
+            left = block_idx < mBlocks ? mData[block_idx] : 0;
+            right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
+            mData[block_idx] = left | right;
+        }
+    }
+
+    clampedBits operator&(const clampedBits &other) const
+    {
+        clampedBits result(std::max(mSize, other.mSize), 0);
+        uint64_t left = 0, right = 0;
+        for (uint64_t block_idx = 0; block_idx < result.mBlocks; ++block_idx)
+        {
+            left = block_idx < mBlocks ? mData[block_idx] : 0;
+            right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
+            result.mData[block_idx] = left & right;
+        }
+        return result;
+    }
+    void operator&=(const clampedBits &other)
+    {
+        expand(std::max(mSize, other.mSize), 0);
+        uint64_t left = 0, right = 0;
+        for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx)
+        {
+            left = block_idx < mBlocks ? mData[block_idx] : 0;
+            right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
+            mData[block_idx] = left & right;
+        }
+    }
+
+    clampedBits operator^(const clampedBits &other) const
+    {
+        clampedBits result(std::max(mSize, other.mSize), 0);
+        uint64_t left = 0, right = 0;
+
+        for (uint64_t block_idx = 0; block_idx < result.mBlocks; ++block_idx)
+        {
+            left = block_idx < mBlocks ? mData[block_idx] : 0;
+            right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
+            result.mData[block_idx] = left ^ right;
+        }
+
+        return result;
+    }
+};
