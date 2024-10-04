@@ -82,7 +82,8 @@ public:
     mData = std::make_unique<uint64_t[]>(mBlocks);
     for (uint64_t idx = 0; idx < mSize; ++idx)
       mData[idx / 64] |=
-          (static_cast<uint64_t>(binary_string[idx] - '0') << (idx % 64));
+          (static_cast<uint64_t>(binary_string[mSize - idx - 1] - '0')
+           << (idx % 64));
   }
 
   clampedBits(const uint64_t bits_data)
@@ -115,7 +116,7 @@ public:
   }
 
   friend std::ostream &operator<<(std::ostream &os, const clampedBits &bits) {
-    for (uint64_t bit_pos = 0; bit_pos < bits.mSize; ++bit_pos)
+    for (int64_t bit_pos = bits.mSize - 1; bit_pos >= 0; --bit_pos)
       os << bits[bit_pos];
     return os;
   }
@@ -125,39 +126,71 @@ public:
 #pragma region unary operators
 
   clampedBits operator+(const clampedBits &other) const {
-    const uint64_t max_size = std::max(mSize, other.mSize);
-    clampedBits result(max_size + 1, 0);
-    uint64_t carry = 0;
-
-    for (uint64_t block_idx = 0; block_idx < result.mBlocks; ++block_idx) {
-      uint64_t a = (block_idx < mBlocks) ? mData[block_idx] : 0;
-      uint64_t b = (block_idx < other.mBlocks) ? other.mData[block_idx] : 0;
-
-      uint64_t sum = a + b + carry;
-      result.mData[block_idx] = sum;
-      carry = (sum < a) || (sum < b);
+    uint64_t max_size = std::max(mSize, other.mSize) + 1;
+    uint64_t carry = 0, left = 0, right = 0;
+    clampedBits result(max_size, 0);
+    for (uint64_t bolck_idx = 0; bolck_idx < result.mBlocks; ++bolck_idx) {
+      left = bolck_idx < mBlocks ? mData[bolck_idx] : 0;
+      right = bolck_idx < other.mBlocks ? other.mData[bolck_idx] : 0;
+      __uint128_t temp = static_cast<__uint128_t>(left) + right + carry;
+      result.mData[bolck_idx] = static_cast<uint64_t>(temp & ONES);
+      carry = static_cast<uint64_t>(temp >> 64);
     }
     clampedBits::trim(result);
     return result;
   }
+  void operator+=(const clampedBits &other) {
+    uint64_t max_size = std::max(mSize, other.mSize) + 1;
+    this->expand(max_size, 0);
+    uint64_t carry = 0, left = 0, right = 0;
+    for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx) {
+      left = mData[block_idx];
+      right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
+      __uint128_t temp = static_cast<__uint128_t>(left) + right + carry;
+      mData[block_idx] = static_cast<uint64_t>(temp & ONES);
+      carry = static_cast<uint64_t>(temp >> 64);
+    }
+    clampedBits::trim(*this);
+  }
 
   clampedBits operator-(const clampedBits &other) const {
-    if (*this < other)
+    if (*this <= other)
       return clampedBits(1, 0);
-
     clampedBits result(mSize, 0);
-    int64_t borrow = 0;
-
+    uint64_t borrow = 0, left = 0, right = 0;
     for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx) {
-      uint64_t a = mData[block_idx];
-      uint64_t b = (block_idx < other.mBlocks) ? other.mData[block_idx] : 0;
-
-      uint64_t diff = a - b - borrow;
-      result.mData[block_idx] = diff;
-      borrow = (a < b) || (static_cast<int64_t>(a) < borrow);
+      left = mData[block_idx];
+      right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
+      __int128_t temp = static_cast<__int128_t>(left) - right - borrow;
+      if (temp < 0) {
+        result.mData[block_idx] =
+            static_cast<uint64_t>(temp + (__int128_t(1) << 64));
+        borrow = 1;
+      } else {
+        result.mData[block_idx] = static_cast<uint64_t>(temp);
+        borrow = 0;
+      }
     }
     clampedBits::trim(result);
     return result;
+  }
+  void operator-=(const clampedBits &other) {
+    if (*this < other)
+      *this = clampedBits(1, 0); // Устанавливаем ноль
+    uint64_t borrow = 0, left = 0, right = 0;
+    for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx) {
+      left = mData[block_idx];
+      right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
+      __int128 temp = static_cast<__uint128_t>(left) - right - borrow;
+      if (temp < 0) {
+        mData[block_idx] = static_cast<uint64_t>(temp + (__int128_t(1) << 64));
+        borrow = 1;
+      } else {
+        mData[block_idx] = static_cast<uint64_t>(temp);
+        borrow = 0;
+      }
+    }
+    clampedBits::trim(*this);
   }
 
 #pragma endregion
@@ -181,6 +214,7 @@ public:
     }
     return std::strong_ordering::equal;
   }
+
   friend bool operator==(const clampedBits &lhs, const clampedBits &rhs) {
     return (lhs <=> rhs) == std::strong_ordering::equal;
   }
@@ -215,18 +249,14 @@ public:
     return lhs <=> rhs == std::strong_ordering::greater;
   }
   friend bool operator>=(const clampedBits &lhs, const clampedBits &rhs) {
-    auto val = lhs <=> rhs;
-    return val == std::strong_ordering::greater ||
-           val == std::strong_ordering::equal;
+    return lhs <=> rhs != std::strong_ordering::less;
   }
 
   friend bool operator<(const clampedBits &lhs, const clampedBits &rhs) {
     return lhs <=> rhs == std::strong_ordering::less;
   }
   friend bool operator<=(const clampedBits &lhs, const clampedBits &rhs) {
-    auto val = lhs <=> rhs;
-    return val == std::strong_ordering::less ||
-           val == std::strong_ordering::equal;
+    return lhs <=> rhs != std::strong_ordering::greater;
   }
 #pragma endregion
 
@@ -278,10 +308,10 @@ public:
    * @return std::string
    */
   std::string str() const {
-    std::string result(mSize, '0');
-    for (uint64_t idx = 0; idx < mSize; ++idx)
-      result.at(idx) = at(idx) + '0';
-    return result;
+    std::stringstream result;
+    for (int64_t idx = mSize - 1; idx >= 0; --idx)
+      result << at(idx);
+    return result.str();
   }
 
   /**
@@ -419,13 +449,19 @@ public:
   clampedBits operator^(const clampedBits &other) const {
     clampedBits result(std::max(mSize, other.mSize), 0);
     uint64_t left = 0, right = 0;
-
     for (uint64_t block_idx = 0; block_idx < result.mBlocks; ++block_idx) {
       left = block_idx < mBlocks ? mData[block_idx] : 0;
       right = block_idx < other.mBlocks ? other.mData[block_idx] : 0;
       result.mData[block_idx] = left ^ right;
     }
+    return result;
+  }
 
+  clampedBits operator~() const {
+    clampedBits result(mSize, 0);
+    for (uint64_t block_idx = 0; block_idx < mBlocks; ++block_idx) {
+      result.mData[block_idx] = ~mData[block_idx];
+    }
     return result;
   }
 #pragma region convert_to_base_method
