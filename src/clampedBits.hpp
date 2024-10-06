@@ -1,4 +1,7 @@
 #pragma once
+#ifndef CLAMPED_BITS_HPP
+#define CLAMPED_BITS_HPP
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -62,10 +65,9 @@ public:
    * @return uint64_t
    */
   static uint64_t bitlen(int64_t number) {
-    if (number < 3)
-      return number == 2 ? 2 : 1;
-    else
-      return static_cast<uint64_t>(std::ceil(std::log2(std::abs(number))));
+    if (number < 1)
+      return 1;
+    return static_cast<uint64_t>(std::ceil(std::log2(std::abs(number)))) + 1ull;
   }
 #pragma endregion
 
@@ -515,3 +517,5 @@ public:
   }
 #pragma endregion
 };
+
+#endif
