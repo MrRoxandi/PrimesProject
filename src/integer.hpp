@@ -17,7 +17,7 @@ public:
   integer &operator=(const integer &) = default;
   integer &operator=(integer &&) = default;
 
-  friend std::ostream operator<<(std::ostream &os, const integer &item) {
+  friend std::ostream &operator<<(std::ostream &os, const integer &item) {
     if (item.mLowerZero)
       os << '-';
     os << item.mData.convert_to_base(10);
