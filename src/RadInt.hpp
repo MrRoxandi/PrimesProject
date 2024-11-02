@@ -34,15 +34,15 @@ cpp_int powMod(cpp_int a, cpp_int b, cpp_int m) {
   return result % m;
 }
 
-bool isPrime(const cpp_int& number) {
+bool isPrime(const cpp_int &number) {
   return boost::multiprecision::miller_rabin_test(number, testIterations);
 }
 
-size_t bitCount(const cpp_int& number) {
+size_t bitCount(const cpp_int &number) {
   return static_cast<size_t>(std::ceil(boost::integer_log2(number)));
 }
 
-cpp_int gcd(const cpp_int& a, const cpp_int& b) {
+cpp_int gcd(const cpp_int &a, const cpp_int &b) {
   cpp_int first = a, second = b, tmp = 0;
   while (second != 0) {
     tmp = first % second;
@@ -74,7 +74,7 @@ cpp_int3D_t Euclid_alg(cpp_int a, cpp_int b) {
   return {b, x, y};
 }
 
-cpp_int invMod(const cpp_int& a, const cpp_int& p) {
+cpp_int invMod(const cpp_int &a, const cpp_int &p) {
   if (a <= 0 || p <= 0) {
     throw std::invalid_argument("Both a and p must be positive numbers");
   }
