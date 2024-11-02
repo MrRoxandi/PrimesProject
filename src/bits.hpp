@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <concepts>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -43,10 +44,16 @@ static uint64_t calculate_blocks(uint64_t bits) {
   return (bits + 63) / 64; // Ceiling division
 }
 
-uint64_t bitlen(int64_t number) {
+uint64_t bitlen(std::signed_integral auto number) {
   if (number < 1)
     return 1;
   return static_cast<uint64_t>(std::ceil(std::log2(std::abs(number)))) + 1;
+}
+
+uint64_t bitlen(std::unsigned_integral auto number) {
+  if (number < 1)
+    return 1;
+  return static_cast<uint64_t>(std::ceil(std::log2(number))) + 1;
 }
 
 } // namespace detail
@@ -130,7 +137,8 @@ public:
     }
   }
 
-  container(uint64_t bits_data) : container(detail::bitlen(bits_data), 0) {
+  container(std::integral auto bits_data)
+      : container(detail::bitlen(bits_data), 0) {
     mData[0] = bits_data;
   }
 
@@ -187,17 +195,17 @@ public:
     return !(lhs == rhs);
   }
 
-  friend bool operator==(const container &lhs, uint64_t rhs) {
+  friend bool operator==(const container &lhs, std::integral auto rhs) {
     return lhs == container(rhs);
   }
-  friend bool operator!=(const container &lhs, uint64_t rhs) {
+  friend bool operator!=(const container &lhs, std::integral auto rhs) {
     return !(lhs == rhs);
   }
 
-  friend bool operator==(const container &lhs, double rhs) {
+  friend bool operator==(const container &lhs, std::floating_point auto rhs) {
     return lhs == container(static_cast<uint64_t>(rhs));
   }
-  friend bool operator!=(const container &lhs, double rhs) {
+  friend bool operator!=(const container &lhs, std::floating_point auto rhs) {
     return !(lhs == rhs);
   }
 
@@ -249,6 +257,86 @@ public:
       }
     }
     container::trim(*this);
+    return *this;
+  }
+
+  container &operator*=(const container &other) {
+    if (*this == 0ull || other == 0ull) {
+      *this = container(1, 0);
+      return *this;
+    }
+    container result(mSize + other.mSize, 0);
+    {
+      container temp(*this);
+      for (uint64_t i = 0; i < other.mSize; ++i) {
+        if (other[i])
+          result += temp;
+        temp <<= 1;
+      }
+    }
+    *this = std::move(result);
+    trim(*this);
+    return *this;
+  }
+
+  container &operator/=(const container &divisor) {
+    if (divisor == 0ull) {
+      throw std::invalid_argument("Division by zero");
+    }
+
+    if (*this < divisor) {
+      *this = container(1, 0);
+      return *this;
+    }
+
+    container quotient(mSize, 0);
+    container remainder(*this);
+    container temp_divisor(divisor);
+
+    // Нормализация делителя
+    int shift = mSize - temp_divisor.mSize;
+    temp_divisor <<= shift;
+
+    // Пока остаток больше или равен исходному делителю
+    while (shift >= 0) {
+      if (remainder >= temp_divisor) {
+        remainder -= temp_divisor;
+        quotient.set(shift, 1);
+      }
+      temp_divisor >>= 1;
+      --shift;
+    }
+
+    *this = std::move(quotient);
+    trim(*this);
+    return *this;
+  }
+
+  container &operator%=(const container &divisor) {
+    if (divisor == 0ull) {
+      throw std::invalid_argument("Division by zero");
+    }
+
+    if (*this < divisor) {
+      return *this;
+    }
+
+    container temp_divisor(divisor);
+
+    // Нормализация делителя
+    int shift = mSize - temp_divisor.mSize;
+    temp_divisor <<= shift;
+
+    // Пока остаток больше или равен исходному делителю
+    while (shift >= 0) {
+      if (*this >= temp_divisor) {
+        *this -= temp_divisor;
+      }
+      temp_divisor >>= 1;
+      --shift;
+    }
+
+    trim(*this);
     return *this;
   }
 
@@ -483,7 +571,20 @@ inline container operator&(container lhs, const container &rhs) {
   return lhs;
 }
 
-// Add other free functions...
+inline container operator*(container lhs, const container &rhs) {
+  lhs *= rhs;
+  return lhs;
+}
+
+inline container operator/(container lhs, const container &rhs) {
+  lhs /= rhs;
+  return lhs;
+}
+
+inline container operator%(container lhs, const container &rhs) {
+  lhs %= rhs;
+  return lhs;
+}
 
 } // namespace bits
 
