@@ -7,9 +7,8 @@
 #include "boost/random.hpp"
 #include <array>
 
-static boost::random::mt19937_64 genEngine{std::random_device{}()};
-
 using boost::multiprecision::cpp_int;
+using std::size_t;
 
 constexpr auto testIterations = 20;
 
@@ -107,6 +106,7 @@ cpp_int fromHex(const std::string_view str) {
 
 namespace integers {
 cpp_int getRandomBits(const size_t bit_count) {
+  boost::random::mt19937_64 genEngine{std::random_device{}()};
   boost::random::uniform_int_distribution<int> intDistribution(0, 1);
   cpp_int result{1};
   for (size_t i = 0; i < bit_count - 1; ++i) {
@@ -121,6 +121,7 @@ cpp_int getRandomInteger(size_t bit_count) { return getRandomBits(bit_count); }
 cpp_int getRandomInteger(cpp_int lower_bound, cpp_int upper_bound) {
   boost::random::uniform_int_distribution<cpp_int> intDistribution(lower_bound,
                                                                    upper_bound);
+  boost::random::mt19937_64 genEngine(std::random_device{}());
   return intDistribution(genEngine);
 }
 }; // namespace integers
